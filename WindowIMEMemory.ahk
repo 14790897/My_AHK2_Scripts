@@ -32,6 +32,9 @@ DllCall("RegisterShellHookWindow", "UInt", hWnd)
 MsgNum := DllCall("RegisterWindowMessage", "Str", "SHELLHOOK")
 OnMessage(MsgNum, WindowChange)
 
+; 监听输入法变化事件 (WM_INPUTLANGCHANGE = 0x51)
+OnMessage(0x51, IMEChange)
+
 Persistent(true)
 
 ; ================= 主要功能函数 =================
@@ -59,6 +62,25 @@ WindowChange(wParam, lParam, *) {
             
             ; 恢复该窗口上次保存的输入法状态
             RestoreWindowIMEState(WindowKey)
+        }
+    }
+}
+
+; 当输入法状态发生变化时触发（例如用户按Shift切换输入法）
+IMEChange(wParam, lParam, msg, hwnd) {
+    try {
+        ; 立即获取当前活动窗口信息并保存，避免时序问题
+        if (hWnd := WinActive("A")) {
+            WindowTitle := WinGetTitle("ahk_id " hWnd)
+            ProcessName := WinGetProcessName("ahk_id " hWnd)
+            WindowKey := ProcessName . ":" . WindowTitle
+            
+            ; 短暂延迟以确保输入法状态已经完全切换，然后立即保存
+            SetTimer(() => SaveWindowIMEState(WindowKey), -30)
+            
+            ; 同时更新 CurrentWindowID（如果这是当前窗口）
+            global CurrentWindowID
+            CurrentWindowID := WindowKey
         }
     }
 }
