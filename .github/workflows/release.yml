@@ -23,12 +23,12 @@ jobs:
           in: WindowIMEMemory.ahk
           out: WindowIMEMemory.exe
       
-      - name: Compile AutoLanguage
-        uses: Banaanae/Action-Ahk2Exe@v1.0.3
-        with:
-          in: AutoLanguage.ahk
-          out: AutoLanguage.exe
-        continue-on-error: true
+    #   - name: Compile AutoLanguage
+    #     uses: Banaanae/Action-Ahk2Exe@v1.0.3
+    #     with:
+    #       in: AutoLanguage.ahk
+    #       out: AutoLanguage.exe
+    #     continue-on-error: true
       
       - name: Create source archive
         run: |
