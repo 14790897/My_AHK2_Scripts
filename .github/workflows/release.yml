@@ -6,6 +6,9 @@ on:
       - 'v*'  # 触发条件：推送以 v 开头的标签，如 v1.0.0
   workflow_dispatch:  # 允许手动触发
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: windows-latest
@@ -14,47 +17,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Download AutoHotkey
-        run: |
-          $url = "https://www.autohotkey.com/download/2.0/AutoHotkey_2.0.18.zip"
-          $output = "AutoHotkey.zip"
-          Invoke-WebRequest -Uri $url -OutFile $output
-          Expand-Archive -Path $output -DestinationPath "AutoHotkey" -Force
-        shell: pwsh
-      
       - name: Compile WindowIMEMemory
-        run: |
-          $ahkPath = Get-ChildItem -Path "AutoHotkey" -Filter "AutoHotkey64.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
-          $compilerPath = Get-ChildItem -Path "AutoHotkey" -Filter "Ahk2Exe.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
-          
-          if (-not $compilerPath) {
-            Write-Error "Compiler not found!"
-            exit 1
-          }
-          
-          & $compilerPath /in "WindowIMEMemory.ahk" /out "WindowIMEMemory.exe" /base $ahkPath
-          
-          if (-not (Test-Path "WindowIMEMemory.exe")) {
-            Write-Error "Compilation failed!"
-            exit 1
-          }
-          
-          Write-Host "Compilation successful!"
-          Get-Item "WindowIMEMemory.exe" | Select-Object Name, Length
-        shell: pwsh
+        uses: Banaanae/Action-Ahk2Exe@v1.0.3
+        with:
+          in: WindowIMEMemory.ahk
+          out: WindowIMEMemory.exe
       
-      - name: Compile AutoLanguage (optional)
-        run: |
-          $ahkPath = Get-ChildItem -Path "AutoHotkey" -Filter "AutoHotkey64.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
-          $compilerPath = Get-ChildItem -Path "AutoHotkey" -Filter "Ahk2Exe.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
-          
-          if (Test-Path "AutoLanguage.ahk") {
-            & $compilerPath /in "AutoLanguage.ahk" /out "AutoLanguage.exe" /base $ahkPath
-            if (Test-Path "AutoLanguage.exe") {
-              Write-Host "AutoLanguage compiled successfully!"
-            }
-          }
-        shell: pwsh
+      - name: Compile AutoLanguage
+        uses: Banaanae/Action-Ahk2Exe@v1.0.3
+        with:
+          in: AutoLanguage.ahk
+          out: AutoLanguage.exe
         continue-on-error: true
       
       - name: Create source archive

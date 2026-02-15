@@ -223,10 +223,16 @@ git push origin v1.0.0
 ```
 
 GitHub Actions 会自动：
-- ✅ 下载 AutoHotkey v2
-- ✅ 编译所有脚本为 exe
+- ✅ 使用官方 AutoHotkey Action 编译脚本（[Banaanae/Action-Ahk2Exe](https://github.com/Banaanae/Action-Ahk2Exe)）
+- ✅ 生成独立可执行文件（exe）
 - ✅ 创建 GitHub Release
 - ✅ 上传编译文件和源码包
+
+**特点**：
+- 无需手动下载 AutoHotkey
+- 支持 v1 和 v2 脚本
+- 从 GitHub 仓库获取编译器（更快更稳定）
+- 自动检测并编译所有 ahk 文件
 
 详细说明请查看 [.github/RELEASE.md](.github/RELEASE.md)
 

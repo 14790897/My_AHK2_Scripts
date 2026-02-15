@@ -93,7 +93,29 @@ git push origin v1.0.0
 ```
 
 主要配置项：
-- AutoHotkey 版本
-- 编译参数
-- Release 描述
-- 上传的文件列表
+- **AutoHotkey Action**: 使用 `Banaanae/Action-Ahk2Exe@v1.0.3`
+  - 自动下载 AutoHotkey 编译器
+  - 支持 v1 和 v2 脚本
+  - 从 GitHub 仓库获取（绕过 Cloudflare）
+- **编译参数**: 使用 `in`（输入文件）和 `out`（输出文件）参数
+- **Release 描述**: 自定义 Release 页面显示的内容
+- **上传的文件列表**: 指定要包含在 Release 中的文件
+
+### 可用的编译选项
+
+```yaml
+- name: Compile Script
+  uses: Banaanae/Action-Ahk2Exe@v1.0.3
+  with:
+    in: MyScript.ahk          # 输入脚本（必需）
+    out: MyScript.exe         # 输出文件名（可选）
+    version: latest           # AutoHotkey 版本（可选，默认 latest）
+    bits: 64                  # 编译位数 32/64（可选，默认 64）
+```
+
+### 使用的 GitHub Actions
+
+- **[actions/checkout@v4](https://github.com/actions/checkout)** - 检出代码
+- **[Banaanae/Action-Ahk2Exe@v1.0.3](https://github.com/Banaanae/Action-Ahk2Exe)** - 编译 AHK 脚本
+- **[softprops/action-gh-release@v1](https://github.com/softprops/action-gh-release)** - 创建 GitHub Release
+

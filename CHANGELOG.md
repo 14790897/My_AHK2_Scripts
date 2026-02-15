@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### 改进
+- ♻️ 使用官方 GitHub Action (Banaanae/Action-Ahk2Exe) 替代手动下载编译器
+- 📝 添加 Actions 对比文档 (.github/ACTIONS_COMPARISON.md)
+- ⚡ 简化 workflow 配置，提高构建速度和稳定性
+- 🔒 从 GitHub 仓库获取编译器（绕过 Cloudflare DDoS 保护）
+
 ### 计划功能
 - [ ] 支持多显示器独立设置
 - [ ] 添加黑白名单功能
