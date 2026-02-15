@@ -38,6 +38,13 @@ LastIMEState := ""
 ; 加载已保存的输入法记忆到内存
 LoadIMEMemory()
 
+; 设置托盘图标（使用系统图标或自定义图标）
+IconFile := A_ScriptDir "\WindowIMEMemory.ico"
+if FileExist(IconFile)
+    TraySetIcon(IconFile)
+else
+    TraySetIcon("shell32.dll", 174)  ; 使用Windows系统图标（键盘图标）
+
 ; 注册 Shell Hook
 MyListener := Gui()
 MyListener.Opt("+LastFound")
@@ -48,6 +55,9 @@ OnMessage(MsgNum, WindowChange)
 
 ; 启动定时器轮询 IME 状态变化（每 100ms 检测一次）
 SetTimer(CheckIMEStateChange, 100)
+
+; 创建系统托盘菜单
+CreateTrayMenu()
 
 Persistent(true)
 
@@ -254,6 +264,87 @@ SetIMEConversionMode(Mode) {
 
 ; ================= 数据持久化函数 =================
 
+; 创建系统托盘菜单
+CreateTrayMenu() {
+    A_TrayMenu.Delete()  ; 清除默认菜单
+    A_TrayMenu.Add("输入法记忆管理", (*) => ShowInfo())
+    A_TrayMenu.Add()  ; 分隔符
+    
+    ; 动态显示当前状态
+    if (IsAutoStartEnabled()) {
+        A_TrayMenu.Add("取消开机自启动", (*) => DisableAutoStart())
+    } else {
+        A_TrayMenu.Add("设置开机自启动", (*) => EnableAutoStart())
+    }
+    
+    A_TrayMenu.Add()  ; 分隔符
+    A_TrayMenu.Add("重新加载", (*) => Reload())
+    A_TrayMenu.Add("退出", (*) => ExitApp())
+    A_TrayMenu.Default := "输入法记忆管理"
+}
+
+; 显示脚本信息
+ShowInfo() {
+    MsgBox("窗口输入法记忆工具`n`n功能：自动记忆并恢复每个应用程序的输入法状态", "输入法记忆管理", 64)
+}
+
+; 检查是否已设置开机自启动
+IsAutoStartEnabled() {
+    RegKey := "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
+    AppName := "WindowIMEMemory"
+    
+    try {
+        Value := RegRead(RegKey, AppName)
+        ; 获取当前可执行文件路径
+        CurrentPath := A_IsCompiled ? A_ScriptFullPath : (A_ScriptDir "\WindowIMEMemory.exe")
+        ; 比较路径（忽略大小写）
+        if (InStr(Value, CurrentPath) || InStr(Value, A_ScriptFullPath))
+            return true
+    }
+    return false
+}
+
+; 启用开机自启动
+EnableAutoStart() {
+    RegKey := "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
+    AppName := "WindowIMEMemory"
+    
+    ; 获取当前可执行文件的完整路径
+    ExePath := A_IsCompiled ? A_ScriptFullPath : (A_ScriptDir "\WindowIMEMemory.exe")
+    
+    ; 如果是脚本运行状态，提示需要先编译
+    if (!A_IsCompiled && !FileExist(ExePath)) {
+        MsgBox("请先将脚本编译为 WindowIMEMemory.exe 文件后再设置开机自启动", "提示", 48)
+        return
+    }
+    
+    try {
+        RegWrite(ExePath, "REG_SZ", RegKey, AppName)
+        MsgBox("开机自启动设置成功！", "成功", 64)
+        ; 刷新托盘菜单
+        CreateTrayMenu()
+    } catch as err {
+        MsgBox("设置失败：" . err.Message, "错误", 16)
+    }
+}
+
+; 禁用开机自启动
+DisableAutoStart() {
+    RegKey := "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
+    AppName := "WindowIMEMemory"
+    
+    try {
+        RegDelete(RegKey, AppName)
+        MsgBox("已取消开机自启动", "成功", 64)
+        ; 刷新托盘菜单
+        CreateTrayMenu()
+    } catch as err {
+        MsgBox("取消失败：" . err.Message, "错误", 16)
+    }
+}
+
+; ================= 数据持久化函数 =================
+
 ; 加载已保存的输入法记忆到内存 Map
 LoadIMEMemory() {
     if (!FileExist(IME_DATA_FILE)) {
@@ -280,22 +371,3 @@ LoadIMEMemory() {
     }
 }
 
-; ================= 调试热键 =================
-F12::
-{
-    global CurrentWindowID, CurrentWindowHwnd, LastIMEState
-
-    CurrentIME := GetCurrentIME()
-    CurrentConvMode := GetIMEConversionMode()
-    CurrentProcess := WinGetProcessName("A")
-
-    ModeText := (CurrentConvMode = 0) ? "英文" : ((CurrentConvMode & 1) ? "中文" : "其他")
-    SavedState := WindowIMEMap.Has(CurrentProcess) ? WindowIMEMap[CurrentProcess] : "无记录"
-
-    ToolTip "当前输入法: " . Format("0x{:04X}", CurrentIME)
-        . "`n转换模式: " . CurrentConvMode . " (" . ModeText . ")"
-        . "`n进程名: " . CurrentProcess
-        . "`n已保存: " . SavedState
-        . "`n上一次: " . LastIMEState
-    SetTimer(() => ToolTip(), 5000)
-}
