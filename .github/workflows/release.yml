@@ -1,0 +1,99 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 触发条件：推送以 v 开头的标签，如 v1.0.0
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download AutoHotkey
+        run: |
+          $url = "https://www.autohotkey.com/download/2.0/AutoHotkey_2.0.18.zip"
+          $output = "AutoHotkey.zip"
+          Invoke-WebRequest -Uri $url -OutFile $output
+          Expand-Archive -Path $output -DestinationPath "AutoHotkey" -Force
+        shell: pwsh
+      
+      - name: Compile WindowIMEMemory
+        run: |
+          $ahkPath = Get-ChildItem -Path "AutoHotkey" -Filter "AutoHotkey64.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+          $compilerPath = Get-ChildItem -Path "AutoHotkey" -Filter "Ahk2Exe.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+          
+          if (-not $compilerPath) {
+            Write-Error "Compiler not found!"
+            exit 1
+          }
+          
+          & $compilerPath /in "WindowIMEMemory.ahk" /out "WindowIMEMemory.exe" /base $ahkPath
+          
+          if (-not (Test-Path "WindowIMEMemory.exe")) {
+            Write-Error "Compilation failed!"
+            exit 1
+          }
+          
+          Write-Host "Compilation successful!"
+          Get-Item "WindowIMEMemory.exe" | Select-Object Name, Length
+        shell: pwsh
+      
+      - name: Compile AutoLanguage (optional)
+        run: |
+          $ahkPath = Get-ChildItem -Path "AutoHotkey" -Filter "AutoHotkey64.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+          $compilerPath = Get-ChildItem -Path "AutoHotkey" -Filter "Ahk2Exe.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+          
+          if (Test-Path "AutoLanguage.ahk") {
+            & $compilerPath /in "AutoLanguage.ahk" /out "AutoLanguage.exe" /base $ahkPath
+            if (Test-Path "AutoLanguage.exe") {
+              Write-Host "AutoLanguage compiled successfully!"
+            }
+          }
+        shell: pwsh
+        continue-on-error: true
+      
+      - name: Create source archive
+        run: |
+          Compress-Archive -Path "*.ahk", "*.md", "license" -DestinationPath "Source-${{ github.ref_name }}.zip" -Force
+        shell: pwsh
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## 🎉 ${{ github.ref_name }} Release
+            
+            ### 📦 包含内容
+            - WindowIMEMemory.exe - 窗口输入法记忆工具
+            - AutoLanguage.exe - 自动切换输入法工具（如果存在）
+            
+            ### 📝 使用说明
+            
+            **WindowIMEMemory（推荐）**：
+            - 双击 `WindowIMEMemory.exe` 运行
+            - 右键托盘图标可以设置开机自启动
+            - 自动记忆每个应用的输入法状态
+            
+            **AutoLanguage**：
+            - 基于预定义应用列表切换输入法
+            - 需要手动配置应用列表
+            
+            ### 📖 完整文档
+            请查看 [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+            
+            ### 🔧 系统要求
+            - Windows 10/11
+            - 无需安装 AutoHotkey（独立运行）
+          draft: false
+          prerelease: false
+          files: |
+            WindowIMEMemory.exe
+            AutoLanguage.exe
+            Source-${{ github.ref_name }}.zip

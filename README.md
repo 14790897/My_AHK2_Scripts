@@ -1,6 +1,29 @@
 # My AHK2 Scripts
 
+[![Build and Release](https://github.com/14790897/My_AHK2_Scripts/actions/workflows/release.yml/badge.svg)](https://github.com/14790897/My_AHK2_Scripts/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/14790897/My_AHK2_Scripts)](https://github.com/14790897/My_AHK2_Scripts/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 AutoHotkey v2 脚本集合，包含实用的系统自动化工具。
+
+## 🚀 快速开始
+
+### 下载安装
+
+**方式一：下载编译好的 exe（推荐）**
+
+1. 进入 [Releases](https://github.com/14790897/My_AHK2_Scripts/releases) 页面
+2. 下载最新版本的 `WindowIMEMemory.exe`
+3. 双击运行即可使用
+
+**方式二：克隆仓库运行脚本**
+
+```bash
+git clone https://github.com/14790897/My_AHK2_Scripts.git
+cd My_AHK2_Scripts
+# 需要先安装 AutoHotkey v2.0
+AutoHotkey.exe WindowIMEMemory.ahk
+```
 
 ## 快速导航
 
@@ -22,38 +45,6 @@ AutoHotkey v2 脚本集合，包含实用的系统自动化工具。
 | `compile.bat` | 批处理 | 编译脚本辅助工具 |
 
 ## 脚本说明
-
-### 1. AutoLanguage.ahk
-
-**功能描述**：自动切换输入法脚本
-
-根据当前活动窗口的应用自动切换输入法，提高多语言工作效率。
-
-**主要功能**：
-- 监听窗口变化事件
-- 英文应用群组自动切换到英文输入法 (US)
-- 其他应用自动切换到中文输入法
-- 支持的英文应用：
-  - Windows Terminal
-  - PowerShell
-  - Termius
-
-**配置方式**：
-
-修改脚本中的以下变量来自定义语言 ID：
-```ahk2
-LANG_EN := 0x0409   ; 美式英语
-LANG_CN := 0x0804   ; 简体中文
-```
-
-在 `EnglishApps` 群组中添加或移除应用：
-```ahk2
-GroupAdd "EnglishApps", "ahk_exe WindowsTerminal.exe"
-GroupAdd "EnglishApps", "ahk_exe powershell.exe"
-; 添加更多应用...
-```
-<!-- & "C:\Program Files\AutoHotkey\Compiler\Ahk2Exe.exe" /in "WindowIMEMemory.ahk" /out "WindowIMEMemory.exe" -->
----
 
 ### 2. FixMiddleClick.ahk
 
@@ -178,11 +169,6 @@ IME_DATA_FILE := A_ScriptDir "\ime_memory.ini"
 
 ## 常见问题
 
-### Q: WindowIMEMemory 和 AutoLanguage 有什么区别？
-
-**A:** 
-- **AutoLanguage**：基于预定义的应用列表切换输入法，需要手动配置应用列表
-- **WindowIMEMemory**：自动学习和记忆每个应用的输入法习惯，无需配置 ⭐推荐使用
 
 ### Q: WindowIMEMemory 为什么需要管理员权限？
 
@@ -224,6 +210,43 @@ compile.bat
 
 将图标文件命名为 `WindowIMEMemory.ico` 并放在脚本目录下，重新编译后即可使用自定义图标。
 
+### 自动发布 Release
+
+项目配置了 GitHub Actions 自动构建流程。推送版本标签即可自动编译并发布：
+
+```bash
+# 创建版本标签
+git tag -a v1.0.0 -m "Release version 1.0.0"
+
+# 推送标签触发自动构建
+git push origin v1.0.0
+```
+
+GitHub Actions 会自动：
+- ✅ 下载 AutoHotkey v2
+- ✅ 编译所有脚本为 exe
+- ✅ 创建 GitHub Release
+- ✅ 上传编译文件和源码包
+
+详细说明请查看 [.github/RELEASE.md](.github/RELEASE.md)
+
+## 🤝 参与贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+详细的贡献指南请查看 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 📋 更新日志
+
+查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新历史。
+
+## 📚 相关链接
+
+- [AutoHotkey v2 官方文档](https://www.autohotkey.com/docs/v2/)
+- [项目 Issues](https://github.com/14790897/My_AHK2_Scripts/issues)
+- [项目 Releases](https://github.com/14790897/My_AHK2_Scripts/releases)
+- [GitHub Actions 工作流](.github/workflows/release.yml)
+
 ## 许可证
 
 MIT License
@@ -231,18 +254,3 @@ MIT License
 ## 作者
 
 liuweiqing
-
-## 更新日志
-
-### 2026-02-15
-- ✨ 新增 WindowIMEMemory 工具
-  - 实现窗口输入法状态自动记忆功能
-  - 添加系统托盘菜单和开机自启动功能
-  - 添加键盘图标标识
-  - 编译为独立可执行文件
-  - 完善文档说明
-
-### 历史版本
-- AutoLanguage - 基于应用列表的输入法切换
-- FixMiddleClick - 鼠标中键防抖动
-- KeyMapping - 键盘映射工具
