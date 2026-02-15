@@ -1,6 +1,14 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
+; 强制以管理员权限运行（防止无法读取任务管理器等窗口的信息）
+if not A_IsAdmin {
+    try {
+        Run "*RunAs " A_ScriptFullPath
+    }
+    ExitApp
+}
+
 ; ================= 配置区域 =================
 
 ; 定义英文输入法的 ID
@@ -27,7 +35,7 @@ LastIMEState := ""
 
 ; ================= 脚本初始化 =================
 
-; 加载已保存的输入法记忆
+; 加载已保存的输入法记忆到内存
 LoadIMEMemory()
 
 ; 注册 Shell Hook
@@ -47,31 +55,36 @@ Persistent(true)
 
 ; 当窗口发生变化时触发
 WindowChange(wParam, lParam, *) {
-    ; 4 = HSHELL_WINDOWACTIVATED
+    ; 4 = HSHELL_WINDOWACTIVATED, 32772 = RDP/全屏
     if (wParam == 4 || wParam == 32772) {
         NewHwnd := lParam
-        
+
         try {
-            ; 获取新窗口的进程名（只用进程名，不用标题）
+            if !WinExist("ahk_id " NewHwnd)
+                return
+
+            ; 获取新窗口的进程名
             NewProcessName := WinGetProcessName("ahk_id " NewHwnd)
             NewWindowKey := NewProcessName
-            
+
             ; ===== 关键修复：先保存旧窗口的状态 =====
             ; 必须在窗口切换前，用旧窗口句柄获取旧窗口的 IME 状态
             if (CurrentWindowHwnd != 0 && CurrentWindowID != "") {
-                SaveWindowIMEStateByHwnd(CurrentWindowID, CurrentWindowHwnd)
+                ; 只有当旧窗口还存在时才保存(防止窗口关闭后报错)
+                if WinExist("ahk_id " CurrentWindowHwnd) {
+                    SaveWindowIMEStateByHwnd(CurrentWindowID, CurrentWindowHwnd)
+                }
             }
-            
+
             ; 更新当前窗口信息
-            global CurrentWindowID, CurrentWindowHwnd
+            global CurrentWindowID, CurrentWindowHwnd, LastIMEState
             CurrentWindowID := NewWindowKey
             CurrentWindowHwnd := NewHwnd
-            
+
             ; 恢复新窗口的输入法状态
             RestoreWindowIMEState(NewWindowKey)
 
-            ; 更新初始 IME 状态记录
-            global LastIMEState
+            ; 更新初始 IME 状态记录，防止切回来瞬间误判为状态变化
             LastIMEState := GetIMEStateByHwnd(NewHwnd)
         }
     }
@@ -83,10 +96,14 @@ CheckIMEStateChange() {
 
     if (CurrentWindowHwnd == 0 || CurrentWindowID == "")
         return
-    
+
+    ; 只有当窗口是活跃状态时才检测（防止后台误读）
+    if (WinActive("A") != CurrentWindowHwnd)
+        return
+
     ; 获取当前 IME 状态
     CurrentState := GetIMEStateByHwnd(CurrentWindowHwnd)
-    
+
     ; 如果状态变化了，保存新状态
     if (CurrentState != "" && CurrentState != LastIMEState) {
         SaveWindowIMEStateByHwnd(CurrentWindowID, CurrentWindowHwnd)
@@ -98,14 +115,14 @@ CheckIMEStateChange() {
 GetIMEStateByHwnd(hWnd) {
     if !hWnd
         return ""
-    
+
     try {
         LangID := GetIMEByHwnd(hWnd)
         ConvMode := GetIMEConversionModeByHwnd(hWnd)
         return LangID . "|" . ConvMode
-        }
-        return ""
-        }
+    }
+    return ""
+}
 
 ; 根据窗口句柄保存 IME 状态
 SaveWindowIMEStateByHwnd(WindowKey, hWnd) {
@@ -123,27 +140,30 @@ SaveWindowIMEStateByHwnd(WindowKey, hWnd) {
 RestoreWindowIMEState(WindowKey) {
     try {
         StateString := ""
-        
+
         if (WindowIMEMap.Has(WindowKey)) {
             ; 从内存中获取历史状态
             StateString := WindowIMEMap[WindowKey]
         } else {
             ; 尝试从文件中读取
             StateString := IniRead(IME_DATA_FILE, "WindowIME", WindowKey, "")
+            ; 如果读到了，也更新进内存 Map，下次就不用读文件了
+            if (StateString != "")
+                WindowIMEMap[WindowKey] := StateString
         }
 
         if (StateString != "") {
             ; 解析状态字符串 "LangID|ConversionMode"
             Parts := StrSplit(StateString, "|")
             TargetLangID := Integer(Parts[1])
-            
+
             ; 切换键盘布局
             SwitchIME(TargetLangID)
-            
-            ; 如果有转换模式信息，恢复该模式
-            if (Parts.Length >= 2) {
+
+            ; 如果有转换模式信息，且是中文模式下，恢复该模式
+            if (Parts.Length >= 2 && TargetLangID == LANG_CN) {
                 TargetConvMode := Integer(Parts[2])
-                Sleep 100  ; 等待输入法切换完成
+                Sleep 50  ; 给系统一点时间反应
                 SetIMEConversionMode(TargetConvMode)
             }
         } else {
@@ -152,7 +172,6 @@ RestoreWindowIMEState(WindowKey) {
             CurrentConvMode := GetIMEConversionMode()
             StateString := CurrentLangID . "|" . CurrentConvMode
             WindowIMEMap[WindowKey] := StateString
-            ; 保存初始状态到文件
             IniWrite(StateString, IME_DATA_FILE, "WindowIME", WindowKey)
         }
     }
@@ -163,20 +182,20 @@ GetCurrentIME() {
     hWnd := WinActive("A")
     if !hWnd
         return LANG_CN
-    
     return GetIMEByHwnd(hWnd)
-    }
+}
 
-    ; 根据窗口句柄获取输入法
-    GetIMEByHwnd(hWnd) {
-        if !hWnd
-            return LANG_CN
-    
-    ThreadID := DllCall("GetWindowThreadProcessId", "UInt", hWnd, "UInt", 0)
-    CurLayout := DllCall("GetKeyboardLayout", "UInt", ThreadID, "UInt")
-    
-    ; 提取低16位作为语言ID
-    return (CurLayout & 0xFFFF)
+; 根据窗口句柄获取输入法
+GetIMEByHwnd(hWnd) {
+    if !hWnd
+        return LANG_CN
+
+    try {
+        ThreadID := DllCall("GetWindowThreadProcessId", "UInt", hWnd, "UInt", 0)
+        CurLayout := DllCall("GetKeyboardLayout", "UInt", ThreadID, "UInt")
+        return (CurLayout & 0xFFFF)
+    }
+    return LANG_CN
 }
 
 ; 获取当前的输入法转换模式
@@ -184,25 +203,24 @@ GetIMEConversionMode() {
     hWnd := WinActive("A")
     if !hWnd
         return 0
-    
     return GetIMEConversionModeByHwnd(hWnd)
-    }
+}
 
-    ; 根据窗口句柄获取输入法转换模式
-    GetIMEConversionModeByHwnd(hWnd) {
-        if !hWnd
-            return 0
-    
+; 根据窗口句柄获取输入法转换模式
+GetIMEConversionModeByHwnd(hWnd) {
+    if !hWnd
+        return 0
+
     DetectHiddenWindows(true)
-    DefaultIMEWnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint", hWnd, "Uint")
-    
-    if (DefaultIMEWnd) {
-        ; 0x283 = WM_IME_CONTROL, 0x001 = IMC_GETCONVERSIONMODE
-        ConvMode := SendMessage(0x283, 0x001, 0, , "ahk_id " DefaultIMEWnd)
-        DetectHiddenWindows(false)
-        return ConvMode
+    try {
+        DefaultIMEWnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint", hWnd, "Uint")
+        if (DefaultIMEWnd) {
+            ; 0x283 = WM_IME_CONTROL, 0x001 = IMC_GETCONVERSIONMODE
+            ConvMode := SendMessage(0x283, 0x001, 0, , "ahk_id " DefaultIMEWnd)
+            DetectHiddenWindows(false)
+            return ConvMode
+        }
     }
-    
     DetectHiddenWindows(false)
     return 0
 }
@@ -218,85 +236,66 @@ SwitchIME(LangID) {
 }
 
 ; 强制设置输入法转换模式
-; Mode: 转换模式值（通常 0=英文, 1=中文, 1025=中文全拼）
 SetIMEConversionMode(Mode) {
     hWnd := WinActive("A")
     if !hWnd
         return
 
     DetectHiddenWindows(true)
-    DefaultIMEWnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint", hWnd, "Uint")
-    
-    if (DefaultIMEWnd) {
-        ; 0x283 = WM_IME_CONTROL, 0x002 = IMC_SETCONVERSIONMODE
-        SendMessage(0x283, 0x002, Mode, , "ahk_id " DefaultIMEWnd)
+    try {
+        DefaultIMEWnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint", hWnd, "Uint")
+        if (DefaultIMEWnd) {
+            ; 0x283 = WM_IME_CONTROL, 0x002 = IMC_SETCONVERSIONMODE
+            SendMessage(0x283, 0x002, Mode, , "ahk_id " DefaultIMEWnd)
+        }
     }
     DetectHiddenWindows(false)
 }
 
 ; ================= 数据持久化函数 =================
 
-; 加载已保存的输入法记忆
+; 加载已保存的输入法记忆到内存 Map
 LoadIMEMemory() {
     if (!FileExist(IME_DATA_FILE)) {
         return
     }
-    
+
     try {
-        ; 读取 ini 文件中的所有条目
-        sections := IniRead(IME_DATA_FILE)
-        
-        ; 简单的实现：遍历所有键
-        ; 注意：AHK2 的 IniRead 返回格式可能需要手动解析
-        ; 这里采用更简单的方式：在需要时动态读取
+        ; 读取整个 Section
+        Content := IniRead(IME_DATA_FILE, "WindowIME")
+
+        ; 遍历每一行解析
+        Loop Parse, Content, "`n", "`r" {
+            if (A_LoopField = "")
+                continue
+
+            ; 分割 Key=Value
+            Parts := StrSplit(A_LoopField, "=", , 2)
+            if (Parts.Length = 2) {
+                Key := Parts[1]
+                Value := Parts[2]
+                WindowIMEMap[Key] := Value
+            }
+        }
     }
 }
 
-; ================= 快捷键（可选）=================
-
-; 可以添加快捷键手动切换输入法
-; Ctrl+Alt+E 切换到英文
-^!e::
-{
-    if WinActive("A") {
-        SwitchIME(LANG_EN)
-        ToolTip "Switched to English"
-        SetTimer(() => ToolTip(), 1000)
-    }
-}
-
-; Ctrl+Alt+C 切换到中文
-^!c::
-{
-    if WinActive("A") {
-        SwitchIME(LANG_CN)
-        ToolTip "Switched to Chinese"
-        SetTimer(() => ToolTip(), 1000)
-    }
-}
-
-; 输出调试信息的热键
+; ================= 调试热键 =================
 F12::
 {
     global CurrentWindowID, CurrentWindowHwnd, LastIMEState
-    
+
     CurrentIME := GetCurrentIME()
     CurrentConvMode := GetIMEConversionMode()
-    CurrentWindow := WinGetTitle("A")
     CurrentProcess := WinGetProcessName("A")
-    
-    ; 解析转换模式
+
     ModeText := (CurrentConvMode = 0) ? "英文" : ((CurrentConvMode & 1) ? "中文" : "其他")
-    
-    ; 从 Map 中读取已保存的状态
     SavedState := WindowIMEMap.Has(CurrentProcess) ? WindowIMEMap[CurrentProcess] : "无记录"
-    
-    ToolTip "当前输入法: " . Format("0x{:04X}", CurrentIME) 
+
+    ToolTip "当前输入法: " . Format("0x{:04X}", CurrentIME)
         . "`n转换模式: " . CurrentConvMode . " (" . ModeText . ")"
-        . "`n窗口: " . CurrentWindow
         . "`n进程名: " . CurrentProcess
-            . "`n当前 WindowID: " . CurrentWindowID
-            . "`n已保存状态: " . SavedState
-            . "`n上次状态: " . LastIMEState
-        SetTimer(() => ToolTip(), 5000)
+        . "`n已保存: " . SavedState
+        . "`n上一次: " . LastIMEState
+    SetTimer(() => ToolTip(), 5000)
 }
