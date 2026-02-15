@@ -45,18 +45,14 @@ jobs:
             
             ### 📦 包含内容
             - WindowIMEMemory.exe - 窗口输入法记忆工具
-            - AutoLanguage.exe - 自动切换输入法工具（如果存在）
+            - Source-${{ github.ref_name }}.zip - 源代码压缩包
             
             ### 📝 使用说明
             
-            **WindowIMEMemory（推荐）**：
+            **WindowIMEMemory**：
             - 双击 `WindowIMEMemory.exe` 运行
             - 右键托盘图标可以设置开机自启动
             - 自动记忆每个应用的输入法状态
-            
-            **AutoLanguage**：
-            - 基于预定义应用列表切换输入法
-            - 需要手动配置应用列表
             
             ### 📖 完整文档
             请查看 [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
@@ -68,5 +64,4 @@ jobs:
           prerelease: false
           files: |
             WindowIMEMemory.exe
-            AutoLanguage.exe
             Source-${{ github.ref_name }}.zip
